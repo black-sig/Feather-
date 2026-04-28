@@ -1,56 +1,59 @@
-name: Build Feather Project
+name: iOS Unsigned IPA Builder
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: # يسمح لك بتشغيل البناء يدوياً من GitHub
+  workflow_dispatch:
+
+env:
+  XCODE_PROJECT: "Feather.xcodeproj"
+  XCODE_SCHEME: "Feather"
 
 jobs:
-  build:
-    # استخدام macOS 15 لضمان توفر iOS 18 SDK
+  build-ipa:
     runs-on: macos-15
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          # حل مشكلة Package.swift: سحب كافة المشاريع الفرعية (Submodules)
           submodules: recursive
           fetch-depth: 0
 
-      - name: Select Xcode Version
-        # اختيار Xcode 16 المخصص لنظام iOS 18
+      - name: Set up Xcode Environment
         run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
 
-      - name: Resolve Swift Packages
-        # حل مشكلة الاعتمادات الخارجية قبل البدء بالبناء
-        run: xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather
+      - name: Resolve Swift Package Dependencies
+        run: xcodebuild -resolvePackageDependencies -project ${{ env.XCODE_PROJECT }} -scheme ${{ env.XCODE_SCHEME }}
 
-      - name: Build Archive
+      - name: Build and Archive Project
         run: |
           mkdir -p build
           xcodebuild archive \
-            -project Feather.xcodeproj \
-            -scheme Feather \
-            -archivePath $PWD/build/Feather.xcarchive \
+            -project ${{ env.XCODE_PROJECT }} \
+            -scheme ${{ env.XCODE_SCHEME }} \
+            -archivePath $PWD/build/App.xcarchive \
             -destination 'generic/platform=iOS' \
             -sdk iphoneos \
             SKIP_INSTALL=NO \
-            BUILD_LIBRARIES_FOR_DISTRIBUTION=YES
+            BUILD_LIBRARIES_FOR_DISTRIBUTION=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=""
 
-      - name: Prepare Unsigned IPA
-        # هذه الخطوة تستخرج ملف الـ .app وتضعه في مجلد Payload لإنشاء ملف IPA غير موقع
-        # مفيد جداً إذا كنت تنوي توقيعه لاحقاً عبر متجرك أو zsign
+      - name: Extract and Generate Unsigned IPA
         run: |
           mkdir -p build/Payload
-          cp -R build/Feather.xcarchive/Products/Applications/*.app build/Payload/
-          cd build && zip -r Feather_Ready_To_Sign.ipa Payload
+          cp -R build/App.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -qr Unsigned_App.ipa Payload
+          echo "IPA build completed successfully."
 
-      - name: Upload Artifact
-        # لرفع الملف الناتج وتنزيله من صفحة الـ Action
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Feather-Build
-          path: build/Feather_Ready_To_Sign.ipa
+          name: Unsigned-IPA-Release
+          path: build/Unsigned_App.ipa
+          retention-days: 7
