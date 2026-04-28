@@ -43,7 +43,9 @@ jobs:
             BUILD_LIBRARIES_FOR_DISTRIBUTION=YES \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
 
       - name: Extract and Generate Unsigned IPA
         run: |
