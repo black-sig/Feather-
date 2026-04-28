@@ -1,33 +1,36 @@
-name: Build Feather IPA
+name: Build Feather Project
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # يسمح لك بتشغيل البناء يدوياً من GitHub
 
 jobs:
   build:
-    runs-on: macos-15 # لضمان دعم iOS 18
+    # استخدام macOS 15 لضمان توفر iOS 18 SDK
+    runs-on: macos-15
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          # حل مشكلة Package.swift: سحب كافة المشاريع الفرعية (Submodules)
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Select Xcode Version
+        # اختيار Xcode 16 المخصص لنظام iOS 18
         run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
 
-      - name: Verify Project File
-        run: |
-          if [ -d "Feather.xcodeproj" ]; then
-            echo "Project file found."
-          else
-            echo "Error: Feather.xcodeproj not found in root directory!"
-            ls -R # لعرض الملفات في حال كان المشروع داخل مجلد فرعي
-            exit 1
-          fi
+      - name: Resolve Swift Packages
+        # حل مشكلة الاعتمادات الخارجية قبل البدء بالبناء
+        run: xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather
 
       - name: Build Archive
         run: |
+          mkdir -p build
           xcodebuild archive \
             -project Feather.xcodeproj \
             -scheme Feather \
@@ -37,10 +40,17 @@ jobs:
             SKIP_INSTALL=NO \
             BUILD_LIBRARIES_FOR_DISTRIBUTION=YES
 
-      - name: Export IPA (Optional)
-        # ملاحظة: هذه الخطوة تحتاج ملف ExportOptions.plist لتوليد ملف IPA نهائي
+      - name: Prepare Unsigned IPA
+        # هذه الخطوة تستخرج ملف الـ .app وتضعه في مجلد Payload لإنشاء ملف IPA غير موقع
+        # مفيد جداً إذا كنت تنوي توقيعه لاحقاً عبر متجرك أو zsign
         run: |
-          xcodebuild -exportArchive \
-            -archivePath $PWD/build/Feather.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath $PWD/build/output
+          mkdir -p build/Payload
+          cp -R build/Feather.xcarchive/Products/Applications/*.app build/Payload/
+          cd build && zip -r Feather_Ready_To_Sign.ipa Payload
+
+      - name: Upload Artifact
+        # لرفع الملف الناتج وتنزيله من صفحة الـ Action
+        uses: actions/upload-artifact@v4
+        with:
+          name: Feather-Build
+          path: build/Feather_Ready_To_Sign.ipa
