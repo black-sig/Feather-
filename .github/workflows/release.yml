@@ -1,45 +1,50 @@
-name: Build Void Store Pro (Fixed Version)
+name: iOS Build Task
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # يسمح بتشغيل السكربت يدوياً
 
 jobs:
   build:
-    # استخدام أحدث نظام ماك متاح (يدعم Xcode 16 فأحدث)
+    # استخدام macOS 15 لضمان دعم أحدث نسخ Xcode و iOS 18
     runs-on: macos-15
-    
+
     steps:
-      - name: 1. Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 2. Setup Xcode (Latest)
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          # تحديث الإصدار ليتوافق مع تنسيق المشروع الجديد
-          xcode-version: '16.0' 
+      - name: Select Xcode Version
+        # نتأكد من اختيار نسخة Xcode 16.0 أو أحدث لدعم iOS 18
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
 
-      - name: 3. Install Dependencies
+      - name: Install Certificates and Profiles (Optional)
+        # إذا كان لديك ملفات تعريف وتوقيع، ضع خطوات فك تشفيرها هنا
+        run: echo "Preparing build environment..."
+
+      - name: Build Archive
         run: |
-          brew install ldid
-          chmod +x ./Makefile || true
+          xcodebuild archive \
+            -project YourProject.xcodeproj \
+            -scheme YourSchemeName \
+            -archivePath $PWD/build/YourApp.xcarchive \
+            -destination 'generic/platform=iOS' \
+            -sdk iphoneos \
+            SKIP_INSTALL=NO \
+            BUILD_LIBRARIES_FOR_DISTRIBUTION=YES
 
-      - name: 4. Build Void Store
+      - name: Export IPA
+        # هذه الخطوة تتطلب وجود ملف ExportOptions.plist في المشروع
         run: |
-          make clean || true
-          make
-          
-          mkdir -p final_output
-          if [ -d "packages" ]; then
-            cp packages/*.ipa final_output/VoidStore_Pro.ipa
-          else
-            # بحث شامل عن الملف في حال تغير مسار المخرجات
-            find . -name "*.ipa" -exec cp {} final_output/VoidStore_Pro.ipa \;
-          fi
+          xcodebuild -exportArchive \
+            -archivePath $PWD/build/YourApp.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath $PWD/build/output
 
-      - name: 5. Upload Artifact
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VoidStore-Final-IPA
-          path: final_output/VoidStore_Pro.ipa
+          name: iOS-App-Build
+          path: build/output/*.ipa
