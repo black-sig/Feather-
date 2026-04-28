@@ -1,50 +1,46 @@
-name: iOS Build Task
+name: Build Feather IPA
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch: # يسمح بتشغيل السكربت يدوياً
+  workflow_dispatch:
 
 jobs:
   build:
-    # استخدام macOS 15 لضمان دعم أحدث نسخ Xcode و iOS 18
-    runs-on: macos-15
+    runs-on: macos-15 # لضمان دعم iOS 18
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Select Xcode Version
-        # نتأكد من اختيار نسخة Xcode 16.0 أو أحدث لدعم iOS 18
         run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
 
-      - name: Install Certificates and Profiles (Optional)
-        # إذا كان لديك ملفات تعريف وتوقيع، ضع خطوات فك تشفيرها هنا
-        run: echo "Preparing build environment..."
+      - name: Verify Project File
+        run: |
+          if [ -d "Feather.xcodeproj" ]; then
+            echo "Project file found."
+          else
+            echo "Error: Feather.xcodeproj not found in root directory!"
+            ls -R # لعرض الملفات في حال كان المشروع داخل مجلد فرعي
+            exit 1
+          fi
 
       - name: Build Archive
         run: |
           xcodebuild archive \
-            -project YourProject.xcodeproj \
-            -scheme YourSchemeName \
-            -archivePath $PWD/build/YourApp.xcarchive \
+            -project Feather.xcodeproj \
+            -scheme Feather \
+            -archivePath $PWD/build/Feather.xcarchive \
             -destination 'generic/platform=iOS' \
             -sdk iphoneos \
             SKIP_INSTALL=NO \
             BUILD_LIBRARIES_FOR_DISTRIBUTION=YES
 
-      - name: Export IPA
-        # هذه الخطوة تتطلب وجود ملف ExportOptions.plist في المشروع
+      - name: Export IPA (Optional)
+        # ملاحظة: هذه الخطوة تحتاج ملف ExportOptions.plist لتوليد ملف IPA نهائي
         run: |
           xcodebuild -exportArchive \
-            -archivePath $PWD/build/YourApp.xcarchive \
+            -archivePath $PWD/build/Feather.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath $PWD/build/output
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: iOS-App-Build
-          path: build/output/*.ipa
