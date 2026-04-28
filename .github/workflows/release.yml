@@ -13,7 +13,7 @@ env:
 
 jobs:
   build-ipa:
-    runs-on: macos-15
+    runs-on: macos-14
 
     steps:
       - name: Checkout Repository
@@ -32,12 +32,15 @@ jobs:
             -project ${{ env.XCODE_PROJECT }} \
             -scheme ${{ env.XCODE_SCHEME }} \
             -archivePath $PWD/build/App.xcarchive \
-            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             SKIP_INSTALL=NO \
             BUILD_LIBRARIES_FOR_DISTRIBUTION=YES \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             -skipPackagePluginValidation \
             -skipMacroValidation
 
