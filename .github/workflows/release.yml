@@ -1,54 +1,45 @@
-name: Build Void Store Pro
+name: Build Void Store Pro (Fixed Version)
 
 on:
-  workflow_dispatch: # تشغيل يدوي من الهاتف
-  push:
-    branches:
-      - main # تشغيل تلقائي عند أي تعديل على الكود
+  workflow_dispatch:
 
 jobs:
-  build_production:
-    name: Build & Package Void Store
-    runs-on: macos-14
+  build:
+    # استخدام أحدث نظام ماك متاح (يدعم Xcode 16 فأحدث)
+    runs-on: macos-15
     
     steps:
-      - name: 1. جلب الكود من المستودع
+      - name: 1. Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      - name: 2. إعداد بيئة Xcode
+      - name: 2. Setup Xcode (Latest)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '15.4'
+          # تحديث الإصدار ليتوافق مع تنسيق المشروع الجديد
+          xcode-version: '16.0' 
 
-      - name: 3. تنظيف وبناء التطبيق
+      - name: 3. Install Dependencies
         run: |
-          # تنظيف أي ملفات بناء قديمة
-          rm -rf _build packages
-          
-          # تحديث رقم الإصدار برمجياً
-          agvtool new-version -all $(date +%H%M)
-          
-          # تشغيل عملية التجميع (Make)
-          make clean
+          brew install ldid
+          chmod +x ./Makefile || true
+
+      - name: 4. Build Void Store
+        run: |
+          make clean || true
           make
-
-      - name: 4. تجهيز ملف الـ IPA النهائي
-        run: |
+          
           mkdir -p final_output
-          # البحث عن ملف الـ IPA الناتج وتغيير اسمه
           if [ -d "packages" ]; then
-            mv packages/*.ipa final_output/VoidStore_Pro.ipa
+            cp packages/*.ipa final_output/VoidStore_Pro.ipa
           else
-            echo "خطأ: لم يتم العثور على مجلد الحزم الناتجة!"
-            exit 1
+            # بحث شامل عن الملف في حال تغير مسار المخرجات
+            find . -name "*.ipa" -exec cp {} final_output/VoidStore_Pro.ipa \;
           fi
 
-      - name: 5. رفع الملف لتتمكن من تحميله
+      - name: 5. Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: VoidStore-Final-IPA
           path: final_output/VoidStore_Pro.ipa
-          retention-days: 5 # سيبقى الملف متاحاً للتحميل لمدة 5 أيام
